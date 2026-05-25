@@ -11,6 +11,7 @@ const port = process.env.PORT || 5000;
 
 const app = express();
 const cors = require("cors");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 
 app.use(cors());
 app.use(express.json());
@@ -27,9 +28,35 @@ const client = new MongoClient(uri, {
   },
 });
 
+// Module: 54.5
+const JWKS = createRemoteJWKSet(new URL("https://wanderlust-one-fawn.vercel.app/api/auth/jwks"));
+
+// Module: 54.4
+const verifyToken = async (req, res, next) => {
+  const authHeader = req?.headers?.authorization;
+  // Module: 54.5
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const token = authHeader.split(" ")[1];
+  // Module: 54.5
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Module: 54.5
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    console.log(payload);
+    next();
+  } catch (error) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+};
+
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     // Module: 52.3
     const database = client.db("wanderlust");
@@ -53,15 +80,34 @@ async function run() {
       res.send(result);
     });
 
+    // Middleware
     // Module: 52.4
-    app.get("/destination/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = {
-        _id: new ObjectId(id),
-      };
-      const result = await destinationCollection.findOne(query);
-      res.send(result);
-    });
+    // Module: 54.4
+    app.get(
+      "/destination/:id",
+      // Module: 54.4
+      verifyToken,
+      // Module: 54.2
+      // (req, res, next) => {
+      //   const header = req.headers.authorization;
+      //   // Module: 54.4
+      //   console.log(header);
+      //   next()},
+      // if (header === "logged in") {
+      //   next();
+      // } else {
+      //   res.status(401).json({ message: "Unauthorized" });
+      // }
+
+      async (req, res) => {
+        const id = req.params.id;
+        const query = {
+          _id: new ObjectId(id),
+        };
+        const result = await destinationCollection.findOne(query);
+        res.send(result);
+      },
+    );
 
     // Module: 52.6
     app.patch("/destination/:id", async (req, res) => {
@@ -88,21 +134,21 @@ async function run() {
     });
 
     // Module: 53.6
-    app.post("/booking", async (req, res) => {
+    app.post("/booking", verifyToken, async (req, res) => {
       const bookingData = req.body;
       const result = await bookingCollection.insertOne(bookingData);
       res.send(result);
     });
 
     // Module: 53.7
-    app.get("/booking/:userId", async (req, res) => {
+    app.get("/booking/:userId", verifyToken, async (req, res) => {
       const { userId } = req.params;
       const result = await bookingCollection.find({ userID: userId }).toArray();
       res.send(result);
     });
 
     // Module: 53.8
-    app.delete("/booking/:id", async (req, res) => {
+    app.delete("/booking/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
 
       const query = {
@@ -112,10 +158,10 @@ async function run() {
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!",
+    // );
   } finally {
     // await client.close();
   }
