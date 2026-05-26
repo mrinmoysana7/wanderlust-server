@@ -29,7 +29,9 @@ const client = new MongoClient(uri, {
 });
 
 // Module: 54.5
-const JWKS = createRemoteJWKSet(new URL("https://wanderlust-one-fawn.vercel.app/api/auth/jwks"));
+const JWKS = createRemoteJWKSet(
+  new URL("https://wanderlust-one-fawn.vercel.app/api/auth/jwks"),
+);
 
 // Module: 54.4
 const verifyToken = async (req, res, next) => {
@@ -155,6 +157,12 @@ async function run() {
         _id: new ObjectId(id),
       };
       const result = await bookingCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // Module: 54.9
+    app.get("/featured", async (req, res) => {
+      const result = await destinationCollection.find().limit(4).toArray();
       res.send(result);
     });
 
